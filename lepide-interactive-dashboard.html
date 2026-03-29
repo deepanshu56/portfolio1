@@ -1,0 +1,1181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lepide — SEO & Competitor Intelligence Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" defer></script>
+<style>
+  :root {
+    --bg: #0b0d13; --card: #12151e; --card2: #1a1f2e; --border: #1f2538;
+    --blue: #3b82f6; --purple: #8b5cf6; --green: #10b981; --red: #ef4444;
+    --yellow: #f59e0b; --orange: #f97316; --cyan: #06b6d4;
+    --white: #f8fafc; --light: #e2e8f0; --muted: #64748b; --faint: #334155;
+    --hdr: #1e293b; --radius: 12px; --shadow: 0 4px 24px rgba(0,0,0,.45);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--light); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; overflow-x: hidden; }
+
+  /* ── HEADER ── */
+  .top-bar { background: linear-gradient(135deg,#0f172a 0%,#1e293b 100%); border-bottom: 1px solid var(--border); padding: 18px 28px; display:flex; justify-content:space-between; align-items:center; position:sticky; top:0; z-index:100; flex-wrap:wrap; gap:6px; }
+  .top-bar h1 { font-size:1.15rem; font-weight:700; color:var(--white); display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .top-bar h1 span.badge { background:var(--blue); color:#fff; font-size:.68rem; padding:2px 8px; border-radius:20px; font-weight:600; }
+  .top-bar .meta { font-size:.75rem; color:var(--muted); }
+  .live-dot { width:8px; height:8px; border-radius:50%; background:var(--green); display:inline-block; animation:pulse 2s infinite; margin-right:6px; }
+  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.3;} }
+
+  /* ── NAV TABS ── */
+  .nav-tabs { background:var(--card); border-bottom:1px solid var(--border); padding:0 28px; display:flex; gap:4px; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  .nav-tabs::-webkit-scrollbar { height:3px; }
+  .nav-tabs::-webkit-scrollbar-thumb { background:var(--faint); }
+  .tab-btn { padding:14px 20px; font-size:.82rem; font-weight:600; color:var(--muted); border:none; background:transparent; cursor:pointer; border-bottom:2px solid transparent; white-space:nowrap; transition:all .2s; touch-action:manipulation; -webkit-tap-highlight-color:transparent; min-height:44px; flex-shrink:0; }
+  .tab-btn:hover { color:var(--light); }
+  .tab-btn.active { color:var(--blue); border-bottom-color:var(--blue); }
+
+  /* ── MAIN CONTENT ── */
+  .container { max-width:1400px; margin:0 auto; padding:24px 28px; }
+  .tab-content { display:none; }
+  .tab-content.active { display:block; animation:fadeIn .3s ease; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(8px);} to{opacity:1;transform:translateY(0);} }
+  /* Disable animation on reduced-motion preference */
+  @media(prefers-reduced-motion:reduce) { .tab-content.active { animation:none; } }
+
+  /* ── SECTION TITLES ── */
+  .section-title { font-size:1rem; font-weight:700; color:var(--white); margin:28px 0 14px; display:flex; align-items:center; gap:8px; }
+  .section-title::after { content:''; flex:1; height:1px; background:var(--border); margin-left:8px; }
+
+  /* ── KPI GRID ── */
+  .kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:16px; margin-bottom:24px; }
+  .kpi-card { background:var(--hdr); border:1px solid var(--border); border-radius:var(--radius); padding:18px 20px; position:relative; overflow:hidden; transition:transform .2s,box-shadow .2s; }
+  .kpi-card:hover { transform:translateY(-2px); box-shadow:var(--shadow); }
+  .kpi-card .accent-bar { position:absolute; top:0; left:0; right:0; height:3px; border-radius:var(--radius) var(--radius) 0 0; }
+  .kpi-card .label { font-size:.72rem; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.05em; margin-bottom:8px; }
+  .kpi-card .value { font-size:1.9rem; font-weight:800; line-height:1; margin-bottom:6px; }
+  .kpi-card .sub { font-size:.75rem; color:var(--muted); }
+  .kpi-card .trend { font-size:.72rem; font-weight:700; margin-top:6px; }
+
+  /* ── GRID LAYOUTS ── */
+  .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+  .grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px; }
+  .grid-2-1 { display:grid; grid-template-columns:2fr 1fr; gap:20px; }
+  .grid-1-2 { display:grid; grid-template-columns:1fr 2fr; gap:20px; }
+  @media(max-width:900px) { .grid-2,.grid-3,.grid-2-1,.grid-1-2 { grid-template-columns:1fr; } }
+  @media(max-width:600px) { .kpi-grid { grid-template-columns:1fr 1fr; gap:10px; } .comp-grid { grid-template-columns:1fr; } }
+
+  /* ── CARDS ── */
+  .card { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:20px; }
+  .card-title { font-size:.85rem; font-weight:700; color:var(--white); margin-bottom:16px; display:flex; align-items:center; justify-content:space-between; }
+  .card-title .subtitle { font-size:.72rem; color:var(--muted); font-weight:400; }
+
+  /* ── TABLES ── */
+  .table-wrap { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:.8rem; }
+  thead th { background:var(--hdr); color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.04em; font-size:.7rem; padding:10px 12px; text-align:left; cursor:pointer; user-select:none; white-space:nowrap; border-bottom:1px solid var(--border); }
+  thead th:hover { color:var(--light); }
+  thead th.sort-asc::after { content:' ↑'; color:var(--blue); }
+  thead th.sort-desc::after { content:' ↓'; color:var(--blue); }
+  tbody tr { border-bottom:1px solid var(--border); transition:background .15s; }
+  tbody tr:hover { background:var(--card2); }
+  tbody td { padding:10px 12px; color:var(--light); }
+  tbody tr:last-child { border-bottom:none; }
+
+  /* ── PILLS / BADGES ── */
+  .pill { display:inline-block; padding:2px 8px; border-radius:20px; font-size:.68rem; font-weight:700; }
+  .pill-green { background:rgba(16,185,129,.15); color:var(--green); }
+  .pill-red { background:rgba(239,68,68,.15); color:var(--red); }
+  .pill-yellow { background:rgba(245,158,11,.15); color:var(--yellow); }
+  .pill-blue { background:rgba(59,130,246,.15); color:var(--blue); }
+  .pill-purple { background:rgba(139,92,246,.15); color:var(--purple); }
+  .pill-orange { background:rgba(249,115,22,.15); color:var(--orange); }
+
+  /* ── PROGRESS BARS ── */
+  .progress-wrap { margin:6px 0; }
+  .progress-label { display:flex; justify-content:space-between; font-size:.72rem; color:var(--muted); margin-bottom:4px; }
+  .progress-bar { height:7px; background:var(--faint); border-radius:4px; overflow:hidden; }
+  .progress-fill { height:100%; border-radius:4px; transition:width 1s ease; }
+
+  /* ── FILTERS ── */
+  .filters { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; align-items:center; }
+  .filter-label { font-size:.75rem; color:var(--muted); font-weight:600; }
+  .filter-btn { padding:6px 14px; border-radius:20px; font-size:.75rem; font-weight:600; border:1px solid var(--border); background:var(--card2); color:var(--muted); cursor:pointer; transition:all .2s; }
+  .filter-btn:hover,.filter-btn.active { background:var(--blue); border-color:var(--blue); color:#fff; }
+  .search-input { flex:1; min-width:180px; max-width:280px; padding:7px 14px; border-radius:8px; border:1px solid var(--border); background:var(--card2); color:var(--light); font-size:.8rem; outline:none; }
+  .search-input:focus { border-color:var(--blue); }
+
+  /* ── CHART CONTAINERS ── */
+  .chart-box { position:relative; width:100%; }
+  canvas { max-width:100%; }
+
+  /* ── INSIGHT BOXES ── */
+  .insight { background:var(--card2); border-left:3px solid var(--blue); border-radius:0 8px 8px 0; padding:12px 16px; margin:8px 0; font-size:.8rem; color:var(--light); }
+  .insight.warn { border-left-color:var(--yellow); }
+  .insight.danger { border-left-color:var(--red); }
+  .insight.success { border-left-color:var(--green); }
+  .insight strong { color:var(--white); }
+
+  /* ── SCORE METER ── */
+  .score-row { display:flex; align-items:center; gap:12px; padding:8px 0; border-bottom:1px solid var(--border); }
+  .score-row:last-child { border-bottom:none; }
+  .score-name { font-size:.8rem; width:160px; flex-shrink:0; color:var(--light); }
+  .score-bar-wrap { flex:1; height:8px; background:var(--faint); border-radius:4px; overflow:hidden; }
+  .score-bar { height:100%; border-radius:4px; }
+  .score-val { font-size:.8rem; font-weight:700; width:50px; text-align:right; }
+
+  /* ── COMPARISON TOGGLE ── */
+  .toggle-group { display:flex; background:var(--card2); border:1px solid var(--border); border-radius:8px; overflow:hidden; margin-bottom:16px; }
+  .toggle-btn { flex:1; padding:8px; font-size:.78rem; font-weight:600; border:none; background:transparent; color:var(--muted); cursor:pointer; transition:all .2s; }
+  .toggle-btn.active { background:var(--blue); color:#fff; }
+
+  /* ── ACTION ITEMS ── */
+  .action-item { background:var(--card2); border:1px solid var(--border); border-radius:10px; padding:16px 18px; margin-bottom:12px; display:grid; grid-template-columns:auto 1fr auto; gap:14px; align-items:start; transition:transform .2s; }
+  .action-item:hover { transform:translateX(4px); }
+  .action-num { font-size:1.5rem; font-weight:800; color:var(--faint); min-width:32px; }
+  .action-title { font-size:.88rem; font-weight:700; color:var(--white); margin-bottom:4px; }
+  .action-desc { font-size:.78rem; color:var(--muted); line-height:1.5; }
+  .action-tags { display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
+  .action-impact { text-align:right; }
+  .impact-score { font-size:1.2rem; font-weight:800; }
+  .impact-label { font-size:.68rem; color:var(--muted); }
+
+  /* ── COMPETITOR CARDS ── */
+  .comp-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:16px; }
+  .comp-card { background:var(--card2); border:1px solid var(--border); border-radius:var(--radius); padding:18px; transition:transform .2s,box-shadow .2s; }
+  .comp-card:hover { transform:translateY(-3px); box-shadow:var(--shadow); }
+  .comp-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+  .comp-name { font-size:.95rem; font-weight:700; }
+  .comp-ticker { font-size:.7rem; color:var(--muted); padding:2px 6px; border:1px solid var(--faint); border-radius:4px; }
+  .comp-stat { display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--border); font-size:.78rem; }
+  .comp-stat:last-child { border-bottom:none; }
+  .comp-stat .sk { color:var(--muted); }
+  .comp-stat .sv { font-weight:700; color:var(--light); }
+
+  /* ── SOV GAUGE ── */
+  .sov-gauge-wrap { display:flex; flex-direction:column; align-items:center; padding:16px 0; }
+  .sov-val { font-size:2.8rem; font-weight:900; }
+  .sov-label { font-size:.78rem; color:var(--muted); margin-top:4px; }
+
+  /* ── TOUCH / BUTTON SAFETY ── */
+  .filter-btn, .toggle-btn { touch-action:manipulation; -webkit-tap-highlight-color:transparent; min-height:36px; }
+  button { -webkit-appearance:none; appearance:none; }
+
+  /* ── MOBILE — 600px ── */
+  @media(max-width:600px) {
+    .top-bar { padding:12px 16px; flex-wrap:wrap; gap:6px; }
+    .top-bar h1 { font-size:.9rem; }
+    .top-bar .meta { font-size:.68rem; }
+    .nav-tabs { padding:0 12px; }
+    .tab-btn { padding:12px 14px; font-size:.76rem; }
+    .container { padding:16px 12px; }
+    .kpi-card .value { font-size:1.5rem; }
+    .kpi-card { padding:14px 16px; }
+    .filters { gap:6px; }
+    .filter-btn { padding:5px 10px; font-size:.72rem; }
+    .search-input { font-size:.78rem; }
+    .section-title { font-size:.9rem; }
+    .card { padding:14px; }
+    .card-title { font-size:.8rem; flex-direction:column; align-items:flex-start; gap:4px; }
+    .score-name { font-size:.74rem; width:120px; }
+    .score-val { font-size:.74rem; }
+    /* Action items stack vertically on mobile */
+    .action-item { grid-template-columns:auto 1fr; grid-template-rows:auto auto; }
+    .action-impact { grid-column:2; grid-row:1; text-align:right; }
+    /* Comp cards */
+    .comp-card { padding:14px; }
+    .comp-name { font-size:.88rem; }
+    /* Chart boxes — cap height on mobile */
+    .chart-box { max-height:260px; }
+    canvas { max-width:100% !important; height:auto !important; }
+  }
+
+  /* ── MOBILE — 360px ── */
+  @media(max-width:360px) {
+    .kpi-grid { grid-template-columns:1fr; }
+    .top-bar h1 { font-size:.82rem; }
+    .kpi-card .value { font-size:1.3rem; }
+    .container { padding:12px 8px; }
+    .toggle-group { font-size:.72rem; }
+    table { font-size:.72rem; }
+    tbody td { padding:8px 8px; }
+  }
+
+  /* ── SCROLLBAR ── */
+  ::-webkit-scrollbar { width:6px; height:6px; }
+  ::-webkit-scrollbar-track { background:var(--bg); }
+  ::-webkit-scrollbar-thumb { background:var(--faint); border-radius:3px; }
+  ::-webkit-scrollbar-thumb:hover { background:var(--muted); }
+
+  /* ── TOOLTIP ── */
+  .tooltip-wrap { position:relative; cursor:help; }
+  .tooltip-wrap .tip { position:absolute; bottom:calc(100% + 8px); left:50%; transform:translateX(-50%); background:var(--hdr); border:1px solid var(--border); color:var(--light); font-size:.72rem; padding:6px 10px; border-radius:6px; white-space:nowrap; pointer-events:none; opacity:0; transition:opacity .2s; z-index:999; }
+  .tooltip-wrap:hover .tip { opacity:1; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="top-bar">
+  <h1>🔐 Lepide SEO & Competitor Intelligence <span class="badge">LIVE</span></h1>
+  <div class="meta"><span class="live-dot"></span>Data Security &amp; AD Audit Niche · March 2026 · 5 Competitors Tracked</div>
+</div>
+
+<!-- NAV -->
+<div class="nav-tabs">
+  <button class="tab-btn active" onclick="switchTab('overview',this)">📊 Overview</button>
+  <button class="tab-btn" onclick="switchTab('sov',this)">📡 Share of Voice</button>
+  <button class="tab-btn" onclick="switchTab('traffic',this)">🌐 Traffic Sources</button>
+  <button class="tab-btn" onclick="switchTab('brands',this)">📣 Brand Mentions</button>
+  <button class="tab-btn" onclick="switchTab('keywords',this)">🔑 Keywords</button>
+  <button class="tab-btn" onclick="switchTab('competitors',this)">🏆 Competitors</button>
+  <button class="tab-btn" onclick="switchTab('actions',this)">⚡ Action Plan</button>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- TAB 1: OVERVIEW -->
+<!-- ═══════════════════════════════════════ -->
+<div id="tab-overview" class="tab-content active">
+<div class="container">
+
+  <!-- KPIs -->
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="accent-bar" style="background:var(--blue)"></div>
+      <div class="label">DSPM Market Size 2025</div>
+      <div class="value" style="color:var(--blue)" data-count="2.05" data-prefix="$" data-suffix="B">$0B</div>
+      <div class="sub">→ $10.38B by 2030</div>
+      <div class="trend" style="color:var(--green)">↑ +38.3% CAGR</div>
+    </div>
+    <div class="kpi-card">
+      <div class="accent-bar" style="background:var(--purple)"></div>
+      <div class="label">Lepide Traffic Gap vs Varonis</div>
+      <div class="value" style="color:var(--purple)" data-count="8.4" data-suffix="×">0×</div>
+      <div class="sub">~380K Varonis vs ~45K Lepide/mo</div>
+      <div class="trend" style="color:var(--yellow)">90% head-to-head win rate</div>
+    </div>
+    <div class="kpi-card">
+      <div class="accent-bar" style="background:var(--green)"></div>
+      <div class="label">Varonis ARR 2025</div>
+      <div class="value" style="color:var(--green)" data-count="742" data-prefix="$" data-suffix="M">$0M</div>
+      <div class="sub">Market cap $2.56B · 19% YoY</div>
+      <div class="trend" style="color:var(--cyan)">76% SaaS transition complete</div>
+    </div>
+    <div class="kpi-card">
+      <div class="accent-bar" style="background:var(--yellow)"></div>
+      <div class="label">Lepide Organic SOV</div>
+      <div class="value" style="color:var(--red)" data-count="1.7" data-suffix="%">0%</div>
+      <div class="sub">vs 14% Varonis · 78% ManageEngine</div>
+      <div class="trend" style="color:var(--red)">🔴 Critical gap</div>
+    </div>
+  </div>
+
+  <!-- Scorecard + Traffic Chart -->
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">⚡ Competitive Scorecard <span class="subtitle">Lepide vs Market</span></div>
+      <div class="filters">
+        <span class="filter-label">Filter:</span>
+        <button class="filter-btn active" onclick="filterScorecard('all',this)">All Metrics</button>
+        <button class="filter-btn" onclick="filterScorecard('advantage',this)">✅ Advantages</button>
+        <button class="filter-btn" onclick="filterScorecard('gap',this)">🔴 Gaps</button>
+      </div>
+      <div class="table-wrap">
+        <table id="scorecard-table">
+          <thead><tr>
+            <th onclick="sortTable('scorecard-table',0)">Metric</th>
+            <th onclick="sortTable('scorecard-table',1)">Lepide</th>
+            <th onclick="sortTable('scorecard-table',2)">Varonis</th>
+            <th onclick="sortTable('scorecard-table',3)">Netwrix</th>
+            <th onclick="sortTable('scorecard-table',4)">Status</th>
+          </tr></thead>
+          <tbody id="scorecard-body">
+            <tr data-status="advantage"><td>G2 Rating</td><td style="color:var(--blue);font-weight:700">4.6★</td><td>4.5★</td><td>4.7★</td><td><span class="pill pill-green">✅ Near Top</span></td></tr>
+            <tr data-status="advantage"><td>Setup Time</td><td style="color:var(--blue);font-weight:700">Hours</td><td>3–6 Months</td><td>Hours</td><td><span class="pill pill-green">✅ Advantage</span></td></tr>
+            <tr data-status="advantage"><td>Head-to-Head Win Rate</td><td style="color:var(--blue);font-weight:700">90%</td><td>—</td><td>—</td><td><span class="pill pill-green">✅ Strong</span></td></tr>
+            <tr data-status="gap"><td>Domain Authority</td><td style="color:var(--blue);font-weight:700">~52</td><td>~72</td><td>~65</td><td><span class="pill pill-yellow">⚠️ Gap</span></td></tr>
+            <tr data-status="gap"><td>Monthly Organic Traffic</td><td style="color:var(--blue);font-weight:700">~45K</td><td>~380K</td><td>~190K</td><td><span class="pill pill-red">🔴 Major Gap</span></td></tr>
+            <tr data-status="gap"><td>Organic Share of Voice</td><td style="color:var(--blue);font-weight:700">1.7%</td><td>14%</td><td>7%</td><td><span class="pill pill-red">🔴 Critical</span></td></tr>
+            <tr data-status="gap"><td>Referring Domains</td><td style="color:var(--blue);font-weight:700">~3.2K</td><td>~18K</td><td>~12K</td><td><span class="pill pill-yellow">⚠️ Gap</span></td></tr>
+            <tr data-status="gap"><td>Blog Articles</td><td style="color:var(--blue);font-weight:700">~210</td><td>~450</td><td>~520</td><td><span class="pill pill-yellow">⚠️ Gap</span></td></tr>
+            <tr data-status="gap"><td>Analyst Recognition</td><td style="color:var(--blue);font-weight:700">None</td><td>Gartner/Forrester</td><td>Gartner</td><td><span class="pill pill-red">🔴 Missing</span></td></tr>
+            <tr data-status="gap"><td>G2 Reviews</td><td style="color:var(--blue);font-weight:700">~85</td><td>~380</td><td>~216</td><td><span class="pill pill-yellow">⚠️ Low</span></td></tr>
+            <tr data-status="gap"><td>Brand Mentions/mo</td><td style="color:var(--blue);font-weight:700">~280</td><td>~4,200</td><td>~1,800</td><td><span class="pill pill-red">🔴 Low</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📈 Monthly Organic Traffic <span class="subtitle">All competitors</span></div>
+      <div class="chart-box" style="height:260px"><canvas id="trafficChart"></canvas></div>
+      <div style="margin-top:16px">
+        <div class="score-row"><div class="score-name">ManageEngine</div><div class="score-bar-wrap"><div class="score-bar" style="width:100%;background:var(--yellow)"></div></div><div class="score-val" style="color:var(--yellow)">735K</div></div>
+        <div class="score-row"><div class="score-name">Varonis</div><div class="score-bar-wrap"><div class="score-bar" style="width:51.7%;background:var(--purple)"></div></div><div class="score-val" style="color:var(--purple)">380K</div></div>
+        <div class="score-row"><div class="score-name">Netwrix</div><div class="score-bar-wrap"><div class="score-bar" style="width:25.9%;background:var(--green)"></div></div><div class="score-val" style="color:var(--green)">190K</div></div>
+        <div class="score-row"><div class="score-name" style="color:var(--blue);font-weight:700">Lepide ★</div><div class="score-bar-wrap"><div class="score-bar" style="width:6.1%;background:var(--blue)"></div></div><div class="score-val" style="color:var(--blue)">45K</div></div>
+        <div class="score-row"><div class="score-name">Safetica</div><div class="score-bar-wrap"><div class="score-bar" style="width:3.8%;background:var(--orange)"></div></div><div class="score-val" style="color:var(--orange)">28K</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Company Size Table -->
+  <div class="section-title">🏢 Company Size & Revenue Comparison</div>
+  <div class="card">
+    <div class="filters">
+      <input type="text" class="search-input" placeholder="🔍 Search companies..." oninput="searchTable('company-table',this.value)">
+      <button class="filter-btn active" onclick="filterCompany('all',this)">All</button>
+      <button class="filter-btn" onclick="filterCompany('public',this)">Public</button>
+      <button class="filter-btn" onclick="filterCompany('private',this)">Private</button>
+    </div>
+    <div class="table-wrap">
+      <table id="company-table">
+        <thead><tr>
+          <th onclick="sortTable('company-table',0)">Brand</th>
+          <th onclick="sortTable('company-table',1)">Domain</th>
+          <th onclick="sortTable('company-table',2)">Revenue (Est.)</th>
+          <th onclick="sortTable('company-table',3)">ARR / Run-Rate</th>
+          <th onclick="sortTable('company-table',4)">Employees</th>
+          <th onclick="sortTable('company-table',5)">Customers</th>
+          <th onclick="sortTable('company-table',6)">Stage</th>
+          <th onclick="sortTable('company-table',7)">G2 Rating</th>
+          <th onclick="sortTable('company-table',8)">Trend</th>
+        </tr></thead>
+        <tbody>
+          <tr data-stage="public"><td style="color:var(--purple);font-weight:700">Varonis</td><td>varonis.com</td><td>$551M</td><td>$742M ARR</td><td>~1,800</td><td>7,000+</td><td><span class="pill pill-purple">Public (VRNS)</span></td><td>4.5★</td><td>→ Stable</td></tr>
+          <tr data-stage="private"><td style="color:var(--green);font-weight:700">Netwrix</td><td>netwrix.com</td><td>~$225M</td><td>~$270M est.</td><td>~900</td><td>13,500+</td><td><span class="pill pill-green">Private</span></td><td>4.7★</td><td>↑ Growing</td></tr>
+          <tr data-stage="private"><td style="color:var(--yellow);font-weight:700">ManageEngine</td><td>manageengine.com</td><td>~$800M*</td><td>N/A</td><td>4,000+</td><td>180,000+</td><td><span class="pill pill-yellow">Zoho Division</span></td><td>4.3★</td><td>→ Stable</td></tr>
+          <tr data-stage="private"><td style="color:var(--blue);font-weight:700">Lepide ★</td><td>lepide.com</td><td>~$15M est.</td><td>~$18M est.</td><td>~150</td><td>1,000+</td><td><span class="pill pill-blue">PE-backed</span></td><td>4.6★</td><td>↑ Growing</td></tr>
+          <tr data-stage="private"><td style="color:var(--orange);font-weight:700">Safetica</td><td>safetica.com</td><td>~$12M est.</td><td>~$14M est.</td><td>~100</td><td>~500</td><td><span class="pill pill-orange">VC-backed</span></td><td>4.4★</td><td>↑ Growing</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="insight success"><strong>Key Insight:</strong> Lepide wins 90% of head-to-head comparisons with Varonis yet captures only 1.7% organic SOV — this is a distribution problem, not a product problem. Solving content &amp; SEO could unlock 8–10× traffic growth.</div>
+</div></div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- TAB 2: SHARE OF VOICE -->
+<!-- ═══════════════════════════════════════ -->
+<div id="tab-sov" class="tab-content">
+<div class="container">
+  <div class="kpi-grid">
+    <div class="kpi-card"><div class="accent-bar" style="background:var(--red)"></div><div class="label">Lepide Organic SOV</div><div class="value" style="color:var(--red)">1.7%</div><div class="sub">vs 14% Varonis</div><div class="trend" style="color:var(--red)">🔴 Critical gap</div></div>
+    <div class="kpi-card"><div class="accent-bar" style="background:var(--purple)"></div><div class="label">Varonis SOV Lead</div><div class="value" style="color:var(--purple)">8.2×</div><div class="sub">Varonis captures 8× more SOV</div><div class="trend" style="color:var(--yellow)">Biggest gap to close</div></div>
+    <div class="kpi-card"><div class="accent-bar" style="background:var(--green)"></div><div class="label">Top Gap Opportunity</div><div class="value" style="color:var(--green)">DSPM</div><div class="sub">+340% YoY growth, low KD</div><div class="trend" style="color:var(--green)">Land-grab window open</div></div>
+    <div class="kpi-card"><div class="accent-bar" style="background:var(--cyan)"></div><div class="label">Total Category Traffic</div><div class="value" style="color:var(--cyan)">~2.7M</div><div class="sub">Monthly searches in niche</div><div class="trend" style="color:var(--green)">Growing 38%/yr</div></div>
+  </div>
+
+  <div class="grid-2">
+    <!-- SOV Donut -->
+    <div class="card">
+      <div class="card-title">🥧 Organic Share of Voice Distribution</div>
+      <div class="toggle-group">
+        <button class="toggle-btn active" onclick="toggleSOV('organic',this)">Organic SOV</button>
+        <button class="toggle-btn" onclick="toggleSOV('traffic',this)">Traffic Share</button>
+        <button class="toggle-btn" onclick="toggleSOV('reviews',this)">Review Share</button>
+      </div>
+      <div class="chart-box" style="height:260px"><canvas id="sovChart"></canvas></div>
+    </div>
+
+    <!-- SOV Table -->
+    <div class="card">
+      <div class="card-title">📋 Full SOV Breakdown</div>
+      <div class="table-wrap">
+        <table id="sov-table">
+          <thead><tr>
+            <th onclick="sortTable('sov-table',0)">Brand</th>
+            <th onclick="sortTable('sov-table',1)">Traffic/mo</th>
+            <th onclick="sortTable('sov-table',2)">SOV %</th>
+            <th onclick="sortTable('sov-table',3)">DA</th>
+            <th onclick="sortTable('sov-table',4)">Ref. Domains</th>
+            <th onclick="sortTable('sov-table',5)">Blogs</th>
+            <th onclick="sortTable('sov-table',6)">G2 Reviews</th>
+          </tr></thead>
+          <tbody>
+            <tr><td style="color:var(--yellow);font-weight:700">ManageEngine</td><td>735,000</td><td><b>78.0%</b></td><td>80</td><td>~45K</td><td>~900</td><td>~1,420</td></tr>
+            <tr><td style="color:var(--purple);font-weight:700">Varonis</td><td>380,000</td><td><b>14.0%</b></td><td>72</td><td>~18K</td><td>~450</td><td>~380</td></tr>
+            <tr><td style="color:var(--green);font-weight:700">Netwrix</td><td>190,000</td><td><b>7.0%</b></td><td>65</td><td>~12K</td><td>~520</td><td>~216</td></tr>
+            <tr><td style="color:var(--blue);font-weight:700">Lepide ★</td><td>45,000</td><td style="color:var(--red)"><b>1.7%</b></td><td>52</td><td>~3.2K</td><td>~210</td><td>~85</td></tr>
+            <tr><td style="color:var(--orange);font-weight:700">Safetica</td><td>28,000</td><td><b>~1.0%</b></td><td>44</td><td>~2.1K</td><td>~140</td><td>~62</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sub-category SOV -->
+  <div class="section-title">📂 SOV by Sub-Category — Where Lepide Ranks</div>
+  <div class="card">
+    <div class="filters">
+      <span class="filter-label">Priority:</span>
+      <button class="filter-btn active" onclick="filterSubcat('all',this)">All</button>
+      <button class="filter-btn" onclick="filterSubcat('defend',this)">✅ Defend</button>
+      <button class="filter-btn" onclick="filterSubcat('attack',this)">🔴 Attack</button>
+      <button class="filter-btn" onclick="filterSubcat('strengthen',this)">⚠️ Strengthen</button>
+    </div>
+    <div class="table-wrap">
+      <table id="subcat-table">
+        <thead><tr>
+          <th onclick="sortTable('subcat-table',0)">Keyword Category</th>
+          <th onclick="sortTable('subcat-table',1)">Search Vol/mo</th>
+          <th onclick="sortTable('subcat-table',2)">Lepide SOV</th>
+          <th onclick="sortTable('subcat-table',3)">Varonis SOV</th>
+          <th onclick="sortTable('subcat-table',4)">Netwrix SOV</th>
+          <th onclick="sortTable('subcat-table',5)">ManageEngine</th>
+          <th onclick="sortTable('subcat-table',6)">Lepide Rank</th>
+          <th onclick="sortTable('subcat-table',7)">Priority</th>
+        </tr></thead>
+        <tbody id="subcat-body">
+          <tr data-priority="defend"><td><b>Active Directory Auditing</b></td><td>~35,000</td><td style="color:var(--blue);font-weight:700">72%</td><td>18%</td><td>22%</td><td>30%</td><td>Pos 2–4</td><td><span class="pill pill-green">✅ Defend</span></td></tr>
+          <tr data-priority="strengthen"><td><b>Compliance (GDPR/HIPAA/SOX)</b></td><td>~28,000</td><td style="color:var(--blue);font-weight:700">45%</td><td>35%</td><td>38%</td><td>42%</td><td>Pos 5–8</td><td><span class="pill pill-yellow">⚠️ Strengthen</span></td></tr>
+          <tr data-priority="attack"><td><b>Ransomware Detection</b></td><td>~22,000</td><td style="color:var(--blue);font-weight:700">28%</td><td>42%</td><td>35%</td><td>38%</td><td>Pos 7–10</td><td><span class="pill pill-red">🔴 Attack</span></td></tr>
+          <tr data-priority="attack"><td><b>Data Security Platform</b></td><td>~18,000</td><td style="color:var(--blue);font-weight:700">12%</td><td>48%</td><td>38%</td><td>55%</td><td>Pos 11–15</td><td><span class="pill pill-red">🔴 Attack</span></td></tr>
+          <tr data-priority="attack"><td><b>DSPM</b></td><td>~12,000</td><td style="color:var(--blue);font-weight:700">8%</td><td>35%</td><td>42%</td><td>28%</td><td>Pos 15+</td><td><span class="pill pill-red">🔴 Land-grab</span></td></tr>
+          <tr data-priority="attack"><td><b>ITDR</b></td><td>~9,000</td><td style="color:var(--blue);font-weight:700">4%</td><td>28%</td><td>55%</td><td>22%</td><td>Pos 20+</td><td><span class="pill pill-red">🔴 Land-grab</span></td></tr>
+          <tr data-priority="attack"><td><b>AI Threat Detection</b></td><td>~8,000</td><td style="color:var(--blue);font-weight:700">5%</td><td>32%</td><td>28%</td><td>35%</td><td>Pos 18+</td><td><span class="pill pill-red">🔴 New Entry</span></td></tr>
+          <tr data-priority="defend"><td><b>File Server Auditing</b></td><td>~6,000</td><td style="color:var(--blue);font-weight:700">38%</td><td>25%</td><td>30%</td><td>45%</td><td>Pos 4–7</td><td><span class="pill pill-green">✅ Maintain</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="card" style="margin-top:20px">
+    <div class="card-title">📊 Sub-Category SOV Comparison</div>
+    <div class="chart-box" style="height:300px"><canvas id="subcatChart"></canvas></div>
+  </div>
+</div></div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- TAB 3: TRAFFIC SOURCES -->
+<!-- ═══════════════════════════════════════ -->
+<div id="tab-traffic" class="tab-content">
+<div class="container">
+  <div class="kpi-grid">
+    <div class="kpi-card"><div class="accent-bar" style="background:var(--green)"></div><div class="label">Lepide Organic %</div><div class="value" style="color:var(--green)">45%</div><div class="sub">Organic is top channel</div><div class="trend" style="color:var(--green)">High vs enterprise avg</div></div>
+    <div class="kpi-card"><div class="accent-bar" style="background:var(--blue)"></div><div class="label">Avg CPC (Niche)</div><div class="value" style="color:var(--blue)">$28</div><div class="sub">High buyer intent keywords</div><div class="trend" style="color:var(--yellow)">Range: $12–$65</div></div>
+    <div class="kpi-card"><div class="accent-bar" style="background:var(--purple)"></div><div class="label">Direct Traffic %</div><div class="value" style="color:var(--purple)">28%</div><div class="sub">Strong brand recall signal</div><div class="trend" style="color:var(--green)">↑ vs SMB peers</div></div>
+    <div class="kpi-card"><div class="accent-bar" style="background:var(--orange)"></div><div class="label">Paid Search %</div><div class="value" style="color:var(--orange)">12%</div><div class="sub">Low vs Varonis (18%), Netwrix (15%)</div><div class="trend" style="color:var(--yellow)">Opportunity to scale</div></div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">🥧 Lepide Traffic Source Mix</div>
+      <div class="chart-box" style="height:260px"><canvas id="trafficMixChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">📊 Traffic Source Comparison vs Competitors</div>
+      <div class="chart-box" style="height:260px"><canvas id="trafficCompChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="section-title">💰 CPC & Paid Search Intelligence</div>
+  <div class="card">
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Keyword</th><th>Search Vol/mo</th><th>CPC (USD)</th><th>KD Score</th><th>Lepide Rank</th><th>Opp. Score</th><th>Recommendation</th></tr></thead>
+        <tbody>
+          <tr><td><b>lepide vs varonis</b></td><td>~1,200</td><td>$42</td><td>35</td><td>#1</td><td><span class="pill pill-green">95/100</span></td><td>Defend with landing page</td></tr>
+          <tr><td><b>active directory auditing tool</b></td><td>~4,400</td><td>$38</td><td>52</td><td>#3–5</td><td><span class="pill pill-green">88/100</span></td><td>Push to #1 with link building</td></tr>
+          <tr><td><b>DSPM software</b></td><td>~2,900</td><td>$65</td><td>48</td><td>#15+</td><td><span class="pill pill-red">91/100</span></td><td>Dedicated content hub NOW</td></tr>
+          <tr><td><b>ransomware detection software</b></td><td>~6,600</td><td>$55</td><td>61</td><td>#8–12</td><td><span class="pill pill-yellow">76/100</span></td><td>Upgrade existing pages</td></tr>
+          <tr><td><b>data security compliance</b></td><td>~8,100</td><td>$45</td><td>58</td><td>#9–14</td><td><span class="pill pill-yellow">72/100</span></td><td>Cluster build (10 articles)</td></tr>
+          <tr><td><b>ITDR solution</b></td><td>~3,200</td><td>$52</td><td>42</td><td>#20+</td><td><span class="pill pill-red">84/100</span></td><td>First-mover opportunity</td></tr>
+          <tr><td><b>file server audit log</b></td><td>~2,400</td><td>$28</td><td>30</td><td>#2–4</td><td><span class="pill pill-green">82/100</span></td><td>Maintain &amp; link to new content</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="section-title">🔗 Referral Domain Analysis</div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">Top Referring Domain Categories</div>
+      <div style="padding:8px 0">
+        <div class="progress-wrap"><div class="progress-label"><span>Tech Media (ZDNet, InfoSec)</span><span style="color:var(--blue)">34%</span></div><div class="progress-bar"><div class="progress-fill" style="width:34%;background:var(--blue)"></div></div></div>
+        <div class="progress-wrap"><div class="progress-label"><span>Review Sites (G2, Capterra, TrustRadius)</span><span style="color:var(--green)">28%</span></div><div class="progress-bar"><div class="progress-fill" style="width:28%;background:var(--green)"></div></div></div>
+        <div class="progress-wrap"><div class="progress-label"><span>Government / Compliance (.gov, .edu)</span><span style="color:var(--purple)">15%</span></div><div class="progress-bar"><div class="progress-fill" style="width:15%;background:var(--purple)"></div></div></div>
+        <div class="progress-wrap"><div class="progress-label"><span>Partner &amp; Integration Sites</span><span style="color:var(--yellow)">13%</span></div><div class="progress-bar"><div class="progress-fill" style="width:13%;background:var(--yellow)"></div></div></div>
+        <div class="progress-wrap"><div class="progress-label"><span>Community Forums (Reddit, Spiceworks)</span><span style="color:var(--orange)">10%</span></div><div class="progress-bar"><div class="progress-fill" style="width:10%;background:var(--orange)"></div></div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Referring Domain Count Comparison</div>
+      <div style="padding:8px 0">
+        <div class="score-row"><div class="score-name">ManageEngine</div><div class="score-bar-wrap"><div class="score-bar" style="width:100%;background:var(--yellow)"></div></div><div class="score-val" style="color:var(--yellow)">~45K</div></div>
+        <div class="score-row"><div class="score-name">Varonis</div><div class="score-bar-wrap"><div class="score-bar" style="width:40%;background:var(--purple)"></div></div><div class="score-val" style="color:var(--purple)">~18K</div></div>
+        <div class="score-row"><div class="score-name">Netwrix</div><div class="score-bar-wrap"><div class="score-bar" style="width:26.7%;background:var(--green)"></div></div><div class="score-val" style="color:var(--green)">~12K</div></div>
+        <div class="score-row"><div class="score-name" style="color:var(--blue);font-weight:700">Lepide ★</div><div class="score-bar-wrap"><div class="score-bar" style="width:7.1%;background:var(--blue)"></div></div><div class="score-val" style="color:var(--blue)">~3.2K</div></div>
+        <div class="score-row"><div class="score-name">Safetica</div><div class="score-bar-wrap"><div class="score-bar" style="width:4.7%;background:var(--orange)"></div></div><div class="score-val" style="color:var(--orange)">~2.1K</div></div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- TAB 4: BRAND MENTIONS -->
+<!-- ═══════════════════════════════════════ -->
+<div id="tab-brands" class="tab-content">
+<div class="container">
+  <div class="kpi-grid">
+    <div class="kpi-card"><div class="accent-bar" style="background:var(--red)"></div><div class="label">Lepide Brand Mentions/mo</div><div class="value" style="color:var(--red)">~280</div><div class="sub">vs Varonis ~4,200</div><div class="trend" style="color:var(--red)">15× gap to Varonis</div></div>
+    <div class="kpi-card"><div class="accent-bar" style="background:var(--green)"></div><div class="label">Lepide YoY Mention Growth</div><div class="value" style="color:var(--green)">+42%</div><div class="sub">Fastest growing in category</div><div class="trend" style="color:var(--green)">↑ Momentum building</div></div>
+    <div class="kpi-card"><div class="accent-bar" style="background:var(--blue)"></div><div class="label">Sentiment Score</div><div class="value" style="color:var(--blue)">4.6★</div><div class="sub">Highest in peer group</div><div class="trend" style="color:var(--green)">Product-led growth signal</div></div>
+    <div class="kpi-card"><div class="accent-bar" style="background:var(--yellow)"></div><div class="label">PR Coverage Gap</div><div class="value" style="color:var(--yellow)">~14×</div><div class="sub">Varonis press mentions</div><div class="trend" style="color:var(--yellow)">No analyst coverage yet</div></div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">📈 Brand Mention Growth — 12-Month Trend</div>
+      <div class="chart-box" style="height:280px"><canvas id="mentionTrendChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">🥧 Brand Mention Share</div>
+      <div class="chart-box" style="height:280px"><canvas id="mentionShareChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="section-title">🌐 Mention Source Breakdown — Lepide</div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">Where Lepide Gets Mentioned</div>
+      <div style="padding:8px 0">
+        <div class="progress-wrap"><div class="progress-label"><span>G2 / Review Platforms</span><span style="color:var(--blue)">38%</span></div><div class="progress-bar"><div class="progress-fill" style="width:38%;background:var(--blue)"></div></div></div>
+        <div class="progress-wrap"><div class="progress-label"><span>Reddit / IT Forums</span><span style="color:var(--orange)">22%</span></div><div class="progress-bar"><div class="progress-fill" style="width:22%;background:var(--orange)"></div></div></div>
+        <div class="progress-wrap"><div class="progress-label"><span>LinkedIn (organic)</span><span style="color:var(--blue)">18%</span></div><div class="progress-bar"><div class="progress-fill" style="width:18%;background:var(--blue)"></div></div></div>
+        <div class="progress-wrap"><div class="progress-label"><span>Tech Media / Blogs</span><span style="color:var(--green)">12%</span></div><div class="progress-bar"><div class="progress-fill" style="width:12%;background:var(--green)"></div></div></div>
+        <div class="progress-wrap"><div class="progress-label"><span>Twitter / X</span><span style="color:var(--cyan)">7%</span></div><div class="progress-bar"><div class="progress-fill" style="width:7%;background:var(--cyan)"></div></div></div>
+        <div class="progress-wrap"><div class="progress-label"><span>YouTube / Podcasts</span><span style="color:var(--purple)">3%</span></div><div class="progress-bar"><div class="progress-fill" style="width:3%;background:var(--purple)"></div></div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Monthly Mentions — All Brands</div>
+      <div style="padding:8px 0">
+        <div class="score-row"><div class="score-name">ManageEngine</div><div class="score-bar-wrap"><div class="score-bar" style="width:100%;background:var(--yellow)"></div></div><div class="score-val" style="color:var(--yellow)">9,500</div></div>
+        <div class="score-row"><div class="score-name">Varonis</div><div class="score-bar-wrap"><div class="score-bar" style="width:44.2%;background:var(--purple)"></div></div><div class="score-val" style="color:var(--purple)">4,200</div></div>
+        <div class="score-row"><div class="score-name">Netwrix</div><div class="score-bar-wrap"><div class="score-bar" style="width:18.9%;background:var(--green)"></div></div><div class="score-val" style="color:var(--green)">1,800</div></div>
+        <div class="score-row"><div class="score-name">Safetica</div><div class="score-bar-wrap"><div class="score-bar" style="width:5.3%;background:var(--orange)"></div></div><div class="score-val" style="color:var(--orange)">~500</div></div>
+        <div class="score-row"><div class="score-name" style="color:var(--blue);font-weight:700">Lepide ★</div><div class="score-bar-wrap"><div class="score-bar" style="width:2.9%;background:var(--blue)"></div></div><div class="score-val" style="color:var(--blue)">~280</div></div>
+      </div>
+      <div class="insight" style="margin-top:16px">
+        <strong>Fastest grower:</strong> Lepide +42% YoY vs Varonis +8% YoY. The momentum is there — it just needs amplification via analyst relations and content.
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- TAB 5: KEYWORDS -->
+<!-- ═══════════════════════════════════════ -->
+<div id="tab-keywords" class="tab-content">
+<div class="container">
+  <div class="kpi-grid">
+    <div class="kpi-card"><div class="accent-bar" style="background:var(--blue)"></div><div class="label">Total Tracked Keywords</div><div class="value" style="color:var(--blue)">148</div><div class="sub">Across 8 clusters</div><div class="trend" style="color:var(--green)">28 in top 5</div></div>
+    <div class="kpi-card"><div class="accent-bar" style="background:var(--green)"></div><div class="label">Low-KD Opportunities</div><div class="value" style="color:var(--green)">34</div><div class="sub">KD &lt; 40, Volume &gt; 500/mo</div><div class="trend" style="color:var(--green)">Ready to target now</div></div>
+    <div class="kpi-card"><div class="accent-bar" style="background:var(--red)"></div><div class="label">Missed High-Value Terms</div><div class="value" style="color:var(--red)">67</div><div class="sub">Top 20+ with strong intent</div><div class="trend" style="color:var(--red)">No existing content</div></div>
+    <div class="kpi-card"><div class="accent-bar" style="background:var(--yellow)"></div><div class="label">Avg Content Gap Score</div><div class="value" style="color:var(--yellow)">71%</div><div class="sub">vs Varonis (18% gap)</div><div class="trend" style="color:var(--yellow)">Large whitespace available</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🎯 Keyword Opportunity Matrix <span class="subtitle">Size = Search Volume · X-axis = Keyword Difficulty · Y-axis = Lepide Rank</span></div>
+    <div class="chart-box" style="height:340px"><canvas id="kwBubbleChart"></canvas></div>
+    <div class="insight" style="margin-top:12px">
+      <strong>Sweet spot:</strong> Bottom-left quadrant = low difficulty + Lepide ranks poorly = easiest wins. DSPM, ITDR, and ransomware clusters sit here — attack these first.
+    </div>
+  </div>
+
+  <div class="section-title">🔍 Top Keyword Gaps — Prioritised by Opportunity</div>
+  <div class="card">
+    <div class="filters">
+      <input type="text" class="search-input" placeholder="🔍 Search keywords..." oninput="searchTable('kw-table',this.value)">
+      <button class="filter-btn active" onclick="filterKW('all',this)">All Clusters</button>
+      <button class="filter-btn" onclick="filterKW('dspm',this)">DSPM</button>
+      <button class="filter-btn" onclick="filterKW('itdr',this)">ITDR</button>
+      <button class="filter-btn" onclick="filterKW('ransomware',this)">Ransomware</button>
+      <button class="filter-btn" onclick="filterKW('ad',this)">AD Audit</button>
+    </div>
+    <div class="table-wrap">
+      <table id="kw-table">
+        <thead><tr>
+          <th onclick="sortTable('kw-table',0)">Keyword</th>
+          <th onclick="sortTable('kw-table',1)">Cluster</th>
+          <th onclick="sortTable('kw-table',2)">Vol/mo</th>
+          <th onclick="sortTable('kw-table',3)">KD</th>
+          <th onclick="sortTable('kw-table',4)">CPC</th>
+          <th onclick="sortTable('kw-table',5)">Lepide Rank</th>
+          <th onclick="sortTable('kw-table',6)">Varonis Rank</th>
+          <th onclick="sortTable('kw-table',7)">Opp.</th>
+          <th onclick="sortTable('kw-table',8)">Action</th>
+        </tr></thead>
+        <tbody>
+          <tr data-cluster="dspm"><td><b>DSPM software</b></td><td><span class="pill pill-red">DSPM</span></td><td>2,900</td><td>48</td><td>$65</td><td>15+</td><td>3</td><td><span class="pill pill-red">91</span></td><td>Create hub page</td></tr>
+          <tr data-cluster="itdr"><td><b>ITDR solution</b></td><td><span class="pill pill-red">ITDR</span></td><td>3,200</td><td>42</td><td>$52</td><td>20+</td><td>5</td><td><span class="pill pill-red">88</span></td><td>First-mover play</td></tr>
+          <tr data-cluster="dspm"><td><b>data security posture management</b></td><td><span class="pill pill-red">DSPM</span></td><td>1,600</td><td>44</td><td>$58</td><td>18+</td><td>4</td><td><span class="pill pill-red">87</span></td><td>Pillar content</td></tr>
+          <tr data-cluster="ad"><td><b>active directory auditing tool</b></td><td><span class="pill pill-green">AD Audit</span></td><td>4,400</td><td>52</td><td>$38</td><td>3–5</td><td>6</td><td><span class="pill pill-green">88</span></td><td>Push to #1</td></tr>
+          <tr data-cluster="ransomware"><td><b>ransomware detection software</b></td><td><span class="pill pill-yellow">Ransomware</span></td><td>6,600</td><td>61</td><td>$55</td><td>8–12</td><td>2</td><td><span class="pill pill-yellow">76</span></td><td>Upgrade content</td></tr>
+          <tr data-cluster="itdr"><td><b>identity threat detection response</b></td><td><span class="pill pill-red">ITDR</span></td><td>1,800</td><td>38</td><td>$48</td><td>25+</td><td>7</td><td><span class="pill pill-red">84</span></td><td>New article series</td></tr>
+          <tr data-cluster="dspm"><td><b>cloud data security posture</b></td><td><span class="pill pill-red">DSPM</span></td><td>1,200</td><td>40</td><td>$62</td><td>20+</td><td>5</td><td><span class="pill pill-red">83</span></td><td>Target immediately</td></tr>
+          <tr data-cluster="ad"><td><b>AD change auditing</b></td><td><span class="pill pill-green">AD Audit</span></td><td>2,100</td><td>34</td><td>$32</td><td>2–3</td><td>8</td><td><span class="pill pill-green">80</span></td><td>Maintain lead</td></tr>
+          <tr data-cluster="ransomware"><td><b>file access monitoring tool</b></td><td><span class="pill pill-yellow">Ransomware</span></td><td>2,900</td><td>45</td><td>$42</td><td>6–9</td><td>3</td><td><span class="pill pill-yellow">79</span></td><td>Strengthen content</td></tr>
+          <tr data-cluster="ad"><td><b>lepide vs varonis</b></td><td><span class="pill pill-green">AD Audit</span></td><td>1,200</td><td>35</td><td>$42</td><td>#1</td><td>—</td><td><span class="pill pill-green">95</span></td><td>Protect #1 position</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div></div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- TAB 6: COMPETITORS -->
+<!-- ═══════════════════════════════════════ -->
+<div id="tab-competitors" class="tab-content">
+<div class="container">
+  <div class="section-title">🏆 Competitor Deep Dive</div>
+  <div class="comp-grid">
+    <div class="comp-card" style="border-color:rgba(139,92,246,.4)">
+      <div class="comp-header"><div class="comp-name" style="color:var(--purple)">Varonis</div><span class="comp-ticker">NASDAQ: VRNS</span></div>
+      <div class="comp-stat"><span class="sk">Revenue</span><span class="sv">$551M</span></div>
+      <div class="comp-stat"><span class="sk">ARR</span><span class="sv" style="color:var(--green)">$742M (+19% YoY)</span></div>
+      <div class="comp-stat"><span class="sk">Employees</span><span class="sv">~1,800</span></div>
+      <div class="comp-stat"><span class="sk">Customers</span><span class="sv">7,000+</span></div>
+      <div class="comp-stat"><span class="sk">Market Cap</span><span class="sv">$2.56B</span></div>
+      <div class="comp-stat"><span class="sk">Organic Traffic</span><span class="sv">~380K/mo</span></div>
+      <div class="comp-stat"><span class="sk">DA</span><span class="sv">~72</span></div>
+      <div class="comp-stat"><span class="sk">G2 Rating</span><span class="sv">4.5★ (~380 reviews)</span></div>
+      <div class="comp-stat"><span class="sk">Analyst Coverage</span><span class="sv">Gartner, Forrester</span></div>
+      <div class="comp-stat"><span class="sk">Lepide Win Rate</span><span class="sv" style="color:var(--green)">90% head-to-head</span></div>
+      <div style="margin-top:12px"><span class="pill pill-purple">SaaS 76%</span> <span class="pill pill-yellow">DLP Leader</span> <span class="pill pill-green">DSPM Strong</span></div>
+    </div>
+
+    <div class="comp-card" style="border-color:rgba(16,185,129,.4)">
+      <div class="comp-header"><div class="comp-name" style="color:var(--green)">Netwrix</div><span class="comp-ticker">Private</span></div>
+      <div class="comp-stat"><span class="sk">Revenue</span><span class="sv">~$225M</span></div>
+      <div class="comp-stat"><span class="sk">ARR</span><span class="sv">~$270M est.</span></div>
+      <div class="comp-stat"><span class="sk">Employees</span><span class="sv">~900</span></div>
+      <div class="comp-stat"><span class="sk">Customers</span><span class="sv">13,500+</span></div>
+      <div class="comp-stat"><span class="sk">Funding</span><span class="sv">PE-backed (TA Associates)</span></div>
+      <div class="comp-stat"><span class="sk">Organic Traffic</span><span class="sv">~190K/mo</span></div>
+      <div class="comp-stat"><span class="sk">DA</span><span class="sv">~65</span></div>
+      <div class="comp-stat"><span class="sk">G2 Rating</span><span class="sv">4.7★ (~216 reviews)</span></div>
+      <div class="comp-stat"><span class="sk">Analyst Coverage</span><span class="sv">Gartner, KuppingerCole</span></div>
+      <div class="comp-stat"><span class="sk">Strategy</span><span class="sv">Acquisition-led growth</span></div>
+      <div style="margin-top:12px"><span class="pill pill-green">PAM Leader</span> <span class="pill pill-blue">ITDR Strong</span> <span class="pill pill-yellow">Mid-Market</span></div>
+    </div>
+
+    <div class="comp-card" style="border-color:rgba(245,158,11,.4)">
+      <div class="comp-header"><div class="comp-name" style="color:var(--yellow)">ManageEngine</div><span class="comp-ticker">Zoho Corp</span></div>
+      <div class="comp-stat"><span class="sk">Revenue</span><span class="sv">~$800M*</span></div>
+      <div class="comp-stat"><span class="sk">Employees</span><span class="sv">4,000+</span></div>
+      <div class="comp-stat"><span class="sk">Customers</span><span class="sv">180,000+</span></div>
+      <div class="comp-stat"><span class="sk">Parent</span><span class="sv">Zoho Corporation</span></div>
+      <div class="comp-stat"><span class="sk">Organic Traffic</span><span class="sv">~735K/mo</span></div>
+      <div class="comp-stat"><span class="sk">DA</span><span class="sv">~80</span></div>
+      <div class="comp-stat"><span class="sk">G2 Rating</span><span class="sv">4.3★ (~1,420 reviews)</span></div>
+      <div class="comp-stat"><span class="sk">Weakness</span><span class="sv">Complex setup, SMB-first</span></div>
+      <div class="comp-stat"><span class="sk">SOV</span><span class="sv" style="color:var(--red)">78% (dominant)</span></div>
+      <div style="margin-top:12px"><span class="pill pill-yellow">IT Suite</span> <span class="pill pill-orange">Free Tier</span> <span class="pill pill-red">Dominant SOV</span></div>
+    </div>
+
+    <div class="comp-card" style="border-color:rgba(59,130,246,.5);background:rgba(59,130,246,.04)">
+      <div class="comp-header"><div class="comp-name" style="color:var(--blue)">Lepide ★ (You)</div><span class="comp-ticker">PE-backed</span></div>
+      <div class="comp-stat"><span class="sk">Revenue</span><span class="sv">~$15M est.</span></div>
+      <div class="comp-stat"><span class="sk">ARR</span><span class="sv">~$18M est.</span></div>
+      <div class="comp-stat"><span class="sk">Employees</span><span class="sv">~150</span></div>
+      <div class="comp-stat"><span class="sk">Customers</span><span class="sv">1,000+</span></div>
+      <div class="comp-stat"><span class="sk">Organic Traffic</span><span class="sv" style="color:var(--red)">~45K/mo</span></div>
+      <div class="comp-stat"><span class="sk">DA</span><span class="sv">~52</span></div>
+      <div class="comp-stat"><span class="sk">G2 Rating</span><span class="sv" style="color:var(--green)">4.6★ (Highest in peer group)</span></div>
+      <div class="comp-stat"><span class="sk">Win Rate</span><span class="sv" style="color:var(--green)">90% vs Varonis</span></div>
+      <div class="comp-stat"><span class="sk">Organic SOV</span><span class="sv" style="color:var(--red)">1.7%</span></div>
+      <div style="margin-top:12px"><span class="pill pill-green">Best Win Rate</span> <span class="pill pill-blue">Fast Setup</span> <span class="pill pill-red">Low SOV</span></div>
+    </div>
+
+    <div class="comp-card" style="border-color:rgba(249,115,22,.4)">
+      <div class="comp-header"><div class="comp-name" style="color:var(--orange)">Safetica</div><span class="comp-ticker">VC-backed</span></div>
+      <div class="comp-stat"><span class="sk">Revenue</span><span class="sv">~$12M est.</span></div>
+      <div class="comp-stat"><span class="sk">Employees</span><span class="sv">~100</span></div>
+      <div class="comp-stat"><span class="sk">Customers</span><span class="sv">~500</span></div>
+      <div class="comp-stat"><span class="sk">Organic Traffic</span><span class="sv">~28K/mo</span></div>
+      <div class="comp-stat"><span class="sk">Focus</span><span class="sv">DLP, Insider Threats</span></div>
+      <div class="comp-stat"><span class="sk">G2 Rating</span><span class="sv">4.4★</span></div>
+      <div class="comp-stat"><span class="sk">Geography</span><span class="sv">EMEA-strong</span></div>
+      <div style="margin-top:12px"><span class="pill pill-orange">DLP Focus</span> <span class="pill pill-blue">EMEA</span></div>
+    </div>
+  </div>
+
+  <div class="section-title">🎯 Competitive Positioning Radar</div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">Capability Radar — Lepide vs Varonis</div>
+      <div class="chart-box" style="height:300px"><canvas id="radarChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Where Lepide Wins &amp; Loses</div>
+      <div style="padding:4px 0">
+        <div class="insight success"><strong>✅ Wins:</strong> Fastest deployment (hours vs months), highest G2 rating (4.6), 90% win rate when compared head-to-head, lower TCO, superior Active Directory coverage.</div>
+        <div class="insight warn" style="margin-top:10px"><strong>⚠️ Parity:</strong> Product capabilities in core data auditing, compliance reporting, file server monitoring are comparable to Netwrix and Varonis.</div>
+        <div class="insight danger" style="margin-top:10px"><strong>🔴 Loses on:</strong> Brand awareness (1.7% SOV), analyst recognition (no Gartner coverage), content volume (210 vs 450+ blog posts), domain authority (52 vs 72), review count (85 vs 380).</div>
+        <div class="insight" style="margin-top:10px"><strong>Strategic conclusion:</strong> Lepide has a <em>distribution problem</em>, not a product problem. 90% win rate proves product-market fit — the entire gap is marketing execution.</div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- TAB 7: ACTION PLAN -->
+<!-- ═══════════════════════════════════════ -->
+<div id="tab-actions" class="tab-content">
+<div class="container">
+  <div class="kpi-grid">
+    <div class="kpi-card"><div class="accent-bar" style="background:var(--red)"></div><div class="label">Quick Wins (0–30 days)</div><div class="value" style="color:var(--red)">5</div><div class="sub">High-impact, low-effort actions</div></div>
+    <div class="kpi-card"><div class="accent-bar" style="background:var(--yellow)"></div><div class="label">Medium-Term (30–90 days)</div><div class="value" style="color:var(--yellow)">6</div><div class="sub">Content &amp; link-building plays</div></div>
+    <div class="kpi-card"><div class="accent-bar" style="background:var(--green)"></div><div class="label">Strategic (90+ days)</div><div class="value" style="color:var(--green)">4</div><div class="sub">Analyst + partnership plays</div></div>
+    <div class="kpi-card"><div class="accent-bar" style="background:var(--blue)"></div><div class="label">Potential Traffic Uplift</div><div class="value" style="color:var(--blue)">8–10×</div><div class="sub">If all actions executed in 12 months</div></div>
+  </div>
+
+  <div class="section-title" style="color:var(--red)">🔴 Quick Wins — 0 to 30 Days</div>
+  <div class="action-item">
+    <div class="action-num">01</div>
+    <div>
+      <div class="action-title">Build DSPM Content Hub (10 articles)</div>
+      <div class="action-desc">DSPM is growing +340% YoY and Lepide has no content for it. Create a pillar page + 10 supporting articles targeting "DSPM software", "data security posture management", "cloud DSPM". CPC is $65 — extremely high buyer intent. Varonis ranks #3, no one owns this for SMB/mid-market yet.</div>
+      <div class="action-tags"><span class="pill pill-red">CRITICAL</span><span class="pill pill-blue">Content</span><span class="pill pill-green">2–4 weeks</span></div>
+    </div>
+    <div class="action-impact"><div class="impact-score" style="color:var(--red)">95</div><div class="impact-label">Impact</div></div>
+  </div>
+
+  <div class="action-item">
+    <div class="action-num">02</div>
+    <div>
+      <div class="action-title">Create ITDR Landing Page + 5 Supporting Articles</div>
+      <div class="action-desc">Identity Threat Detection & Response (ITDR) is a $4.9B market growing 25% YoY. Netwrix ranks well but Lepide is absent at position 20+. KD is only 42 — this is a first-mover window that closes within 12 months as the space gets crowded.</div>
+      <div class="action-tags"><span class="pill pill-red">CRITICAL</span><span class="pill pill-blue">Content</span><span class="pill pill-green">3 weeks</span></div>
+    </div>
+    <div class="action-impact"><div class="impact-score" style="color:var(--red)">88</div><div class="impact-label">Impact</div></div>
+  </div>
+
+  <div class="action-item">
+    <div class="action-num">03</div>
+    <div>
+      <div class="action-title">Launch "Lepide vs [Competitor]" Comparison Pages</div>
+      <div class="action-desc">Lepide already ranks #1 for "lepide vs varonis" (~1,200 searches/mo). Build 4 more comparison pages: vs Netwrix, vs ManageEngine, vs Safetica, vs Microsoft Sentinel. These pages convert at 3–5× the rate of regular blog posts and protect your win rate advantage.</div>
+      <div class="action-tags"><span class="pill pill-red">HIGH</span><span class="pill pill-green">Conversion</span><span class="pill pill-green">1 week</span></div>
+    </div>
+    <div class="action-impact"><div class="impact-score" style="color:var(--yellow)">85</div><div class="impact-label">Impact</div></div>
+  </div>
+
+  <div class="action-item">
+    <div class="action-num">04</div>
+    <div>
+      <div class="action-title">G2 Review Campaign — Target 200+ Reviews in 60 Days</div>
+      <div class="action-desc">85 reviews vs Varonis 380. Buyers trust volume. Email existing 1,000+ customers with a personalised ask. Even 100 new reviews = +118% review count, making Lepide competitive in G2 category listings. Higher review count also improves G2 organic ranking.</div>
+      <div class="action-tags"><span class="pill pill-red">HIGH</span><span class="pill pill-orange">Social Proof</span><span class="pill pill-green">2 weeks setup</span></div>
+    </div>
+    <div class="action-impact"><div class="impact-score" style="color:var(--yellow)">82</div><div class="impact-label">Impact</div></div>
+  </div>
+
+  <div class="action-item">
+    <div class="action-num">05</div>
+    <div>
+      <div class="action-title">Ransomware Detection — Upgrade 3 Existing Pages</div>
+      <div class="action-desc">Lepide ranks 8–12 for high-volume ransomware terms (~6,600 searches, $55 CPC). Upgrade existing pages with case studies, detection benchmarks, and structured data. A top-5 ranking for this cluster could add ~2,000 organic visitors/month alone.</div>
+      <div class="action-tags"><span class="pill pill-yellow">MEDIUM</span><span class="pill pill-blue">SEO</span><span class="pill pill-green">2 weeks</span></div>
+    </div>
+    <div class="action-impact"><div class="impact-score" style="color:var(--yellow)">76</div><div class="impact-label">Impact</div></div>
+  </div>
+
+  <div class="section-title" style="color:var(--yellow)">⚠️ Medium-Term — 30 to 90 Days</div>
+  <div class="action-item">
+    <div class="action-num">06</div>
+    <div>
+      <div class="action-title">Link Building Campaign — 50 High-DA Links (DA 50+)</div>
+      <div class="action-desc">Lepide has ~3,200 referring domains vs Varonis ~18,000. Target tech media (ZDNet, TechRepublic, Dark Reading, SC Media) with data-led studies. A cybersecurity industry report on "State of AD Security" could earn 100+ natural links and boost DA from 52 toward 60+.</div>
+      <div class="action-tags"><span class="pill pill-red">HIGH</span><span class="pill pill-purple">Link Building</span><span class="pill pill-yellow">60 days</span></div>
+    </div>
+    <div class="action-impact"><div class="impact-score" style="color:var(--green)">90</div><div class="impact-label">Impact</div></div>
+  </div>
+
+  <div class="action-item">
+    <div class="action-num">07</div>
+    <div>
+      <div class="action-title">Compliance Content Cluster — GDPR, HIPAA, SOX, PCI-DSS</div>
+      <div class="action-desc">28,000 monthly searches in compliance. Lepide already ranks 5–8 — push to 1–3 by building a compliance hub with dedicated pages per regulation. These are high-intent, late-stage buyers. Each page should include downloadable audit templates to drive lead capture.</div>
+      <div class="action-tags"><span class="pill pill-yellow">MEDIUM</span><span class="pill pill-blue">Content</span><span class="pill pill-yellow">45 days</span></div>
+    </div>
+    <div class="action-impact"><div class="impact-score" style="color:var(--yellow)">78</div><div class="impact-label">Impact</div></div>
+  </div>
+
+  <div class="section-title" style="color:var(--green)">✅ Strategic — 90+ Days</div>
+  <div class="action-item">
+    <div class="action-num">08</div>
+    <div>
+      <div class="action-title">Gartner Analyst Relations — Target Magic Quadrant</div>
+      <div class="action-desc">Varonis and Netwrix both appear in Gartner reports. No Gartner recognition = no enterprise procurement shortlist in 60% of deals over $50K. Begin analyst briefings with Gartner, Forrester, and KuppingerCole immediately. Budget: $25–50K/yr but unlocks enterprise pipeline worth 10–100×.</div>
+      <div class="action-tags"><span class="pill pill-red">CRITICAL</span><span class="pill pill-purple">Analyst</span><span class="pill pill-orange">6–12 months</span></div>
+    </div>
+    <div class="action-impact"><div class="impact-score" style="color:var(--green)">97</div><div class="impact-label">Impact</div></div>
+  </div>
+
+  <div class="action-item">
+    <div class="action-num">09</div>
+    <div>
+      <div class="action-title">AI-Powered Threat Detection — Publish Thought Leadership</div>
+      <div class="action-desc">8,000 monthly searches for "AI threat detection" growing rapidly. No one in the peer group has strong content here. Publish 5 articles positioning Lepide's AI capabilities vs legacy SIEM. This sets up a new category position ahead of the AI security wave.</div>
+      <div class="action-tags"><span class="pill pill-blue">Strategic</span><span class="pill pill-cyan">Thought Leadership</span></div>
+    </div>
+    <div class="action-impact"><div class="impact-score" style="color:var(--green)">80</div><div class="impact-label">Impact</div></div>
+  </div>
+</div></div>
+
+<script>
+// ─── DATA ─────────────────────────────────────────────────────────
+var BRANDS = ['ManageEngine','Varonis','Netwrix','Lepide ★','Safetica'];
+var COLORS = ['#f59e0b','#8b5cf6','#10b981','#3b82f6','#f97316'];
+var sovData = {
+  organic: [78, 14, 7, 1.7, 1.0],
+  traffic: [735000, 380000, 190000, 45000, 28000],
+  reviews: [1420, 380, 216, 85, 62]
+};
+
+// ─── TAB SWITCHING — cross-browser safe ──────────────────────────
+function switchTab(id, btn) {
+  document.querySelectorAll('.tab-content').forEach(function(t) { t.classList.remove('active'); });
+  document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+  var panel = document.getElementById('tab-' + id);
+  if (panel) panel.classList.add('active');
+  if (btn) btn.classList.add('active');
+  // Lazy-init charts — guard with typeof Chart check (defer load)
+  if (typeof Chart === 'undefined') return;
+  if (id === 'sov' && !window._sovInit) { try { initSOV(); window._sovInit = true; } catch(e){ console.warn('SOV chart error',e); } }
+  if (id === 'traffic' && !window._trafficInit) { try { initTrafficCharts(); window._trafficInit = true; } catch(e){ console.warn('Traffic chart error',e); } }
+  if (id === 'brands' && !window._brandsInit) { try { initBrandCharts(); window._brandsInit = true; } catch(e){ console.warn('Brand chart error',e); } }
+  if (id === 'keywords' && !window._kwInit) { try { initKWCharts(); window._kwInit = true; } catch(e){ console.warn('KW chart error',e); } }
+  if (id === 'competitors' && !window._compInit) { try { initCompetitorCharts(); window._compInit = true; } catch(e){ console.warn('Comp chart error',e); } }
+}
+
+// ─── ANIMATED COUNTERS ────────────────────────────────────────────
+function animateCounter(el) {
+  var target = parseFloat(el.dataset.count);
+  var prefix = el.dataset.prefix || '';
+  var suffix = el.dataset.suffix || '';
+  var start = 0;
+  var duration = 1200;
+  // Respect reduced-motion preference
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    el.textContent = prefix + target + suffix; return;
+  }
+  var step = function(timestamp) {
+    if (!start) start = timestamp;
+    var progress = Math.min((timestamp - start) / duration, 1);
+    var ease = 1 - Math.pow(1 - progress, 3);
+    var current = target * ease;
+    el.textContent = prefix + (Number.isInteger(target) ? Math.round(current) : current.toFixed(1)) + suffix;
+    if (progress < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+// ─── INIT OVERVIEW CHART — runs after Chart.js loads ─────────────
+function initOverviewChart() {
+  var trafficCtxEl = document.getElementById('trafficChart');
+  if (!trafficCtxEl || typeof Chart === 'undefined') return;
+  var trafficCtx = trafficCtxEl.getContext('2d');
+  new Chart(trafficCtx, {
+  type: 'bar',
+  data: {
+    labels: BRANDS,
+    datasets: [{
+      label: 'Monthly Organic Traffic',
+      data: [735000, 380000, 190000, 45000, 28000],
+      backgroundColor: COLORS.map(c => c + '99'),
+      borderColor: COLORS,
+      borderWidth: 2,
+      borderRadius: 6
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      y: { grid: { color: '#1f2538' }, ticks: { color: '#64748b', callback: function(v) { return v >= 1000 ? (v/1000)+'K' : v; } } },
+      x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+    }
+  }
+});
+} // end initOverviewChart
+
+// ─── SCORECARD FILTER ────────────────────────────────────────────
+function filterScorecard(type, btn) {
+  document.querySelectorAll('.filters .filter-btn').forEach(b => { if(b.parentElement === btn.parentElement) b.classList.remove('active'); });
+  btn.classList.add('active');
+  document.querySelectorAll('#scorecard-body tr').forEach(tr => {
+    tr.style.display = (type === 'all' || tr.dataset.status === type) ? '' : 'none';
+  });
+}
+
+// ─── COMPANY TABLE FILTER ─────────────────────────────────────────
+function filterCompany(type, btn) {
+  document.querySelectorAll('#company-table').forEach(() => {});
+  btn.parentElement.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('#company-table tbody tr').forEach(tr => {
+    tr.style.display = (type === 'all' || tr.dataset.stage === type) ? '' : 'none';
+  });
+}
+
+// ─── SUB-CATEGORY FILTER ─────────────────────────────────────────
+function filterSubcat(type, btn) {
+  btn.parentElement.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('#subcat-body tr').forEach(tr => {
+    const match = type === 'all' ||
+      (type === 'defend' && tr.dataset.priority === 'defend') ||
+      (type === 'attack' && tr.dataset.priority === 'attack') ||
+      (type === 'strengthen' && tr.dataset.priority === 'strengthen');
+    tr.style.display = match ? '' : 'none';
+  });
+}
+
+// ─── KEYWORD FILTER ──────────────────────────────────────────────
+function filterKW(type, btn) {
+  btn.parentElement.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('#kw-table tbody tr').forEach(tr => {
+    tr.style.display = (type === 'all' || tr.dataset.cluster === type) ? '' : 'none';
+  });
+}
+
+// ─── TABLE SEARCH ────────────────────────────────────────────────
+function searchTable(tableId, query) {
+  const q = query.toLowerCase();
+  document.querySelectorAll('#' + tableId + ' tbody tr').forEach(tr => {
+    tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+
+// ─── TABLE SORT ──────────────────────────────────────────────────
+let sortState = {};
+function sortTable(tableId, colIdx) {
+  const table = document.getElementById(tableId);
+  if (!table) return;
+  const key = tableId + '_' + colIdx;
+  const asc = sortState[key] !== true;
+  sortState[key] = asc;
+  table.querySelectorAll('thead th').forEach((th,i) => {
+    th.classList.remove('sort-asc','sort-desc');
+    if (i === colIdx) th.classList.add(asc ? 'sort-asc' : 'sort-desc');
+  });
+  const tbody = table.querySelector('tbody');
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+  rows.sort((a, b) => {
+    const av = a.cells[colIdx]?.textContent.trim() || '';
+    const bv = b.cells[colIdx]?.textContent.trim() || '';
+    const an = parseFloat(av.replace(/[^0-9.-]/g,''));
+    const bn = parseFloat(bv.replace(/[^0-9.-]/g,''));
+    if (!isNaN(an) && !isNaN(bn)) return asc ? an - bn : bn - an;
+    return asc ? av.localeCompare(bv) : bv.localeCompare(av);
+  });
+  rows.forEach(r => tbody.appendChild(r));
+}
+
+// ─── SOV CHARTS ──────────────────────────────────────────────────
+let sovChart;
+function initSOV() {
+  const ctx = document.getElementById('sovChart').getContext('2d');
+  sovChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: BRANDS,
+      datasets: [{ data: sovData.organic, backgroundColor: COLORS, borderColor: '#0b0d13', borderWidth: 3, hoverOffset: 12 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '65%',
+      plugins: {
+        legend: { position: 'right', labels: { color: '#94a3b8', padding: 16, font: { size: 11 } } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.raw}%` } }
+      }
+    }
+  });
+
+  const subcatCtx = document.getElementById('subcatChart').getContext('2d');
+  new Chart(subcatCtx, {
+    type: 'bar',
+    data: {
+      labels: ['AD Auditing','Compliance','Ransomware','Data Security','DSPM','ITDR','AI Threats','File Server'],
+      datasets: [
+        { label: 'Lepide', data: [72,45,28,12,8,4,5,38], backgroundColor: '#3b82f699', borderColor: '#3b82f6', borderWidth: 2, borderRadius: 4 },
+        { label: 'Varonis', data: [18,35,42,48,35,28,32,25], backgroundColor: '#8b5cf699', borderColor: '#8b5cf6', borderWidth: 2, borderRadius: 4 },
+        { label: 'Netwrix', data: [22,38,35,38,42,55,28,30], backgroundColor: '#10b98199', borderColor: '#10b981', borderWidth: 2, borderRadius: 4 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#94a3b8' } } },
+      scales: {
+        y: { grid: { color: '#1f2538' }, ticks: { color: '#64748b', callback: v => v+'%' } },
+        x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10 } } }
+      }
+    }
+  });
+}
+
+function toggleSOV(type, btn) {
+  btn.parentElement.querySelectorAll('.toggle-btn').forEach(function(b) { b.classList.remove('active'); });
+  btn.classList.add('active');
+  if (!sovChart) return;
+  var fmtFns = {
+    organic: function(d) { return d+'%'; },
+    traffic: function(d) { return (d/1000).toFixed(0)+'K'; },
+    reviews: function(d) { return d; }
+  };
+  sovChart.data.datasets[0].data = sovData[type];
+  sovChart.options.plugins.tooltip.callbacks.label = function(ctx) { return ' ' + ctx.label + ': ' + fmtFns[type](ctx.raw); };
+  sovChart.update();
+}
+
+// ─── TRAFFIC CHARTS ──────────────────────────────────────────────
+function initTrafficCharts() {
+  const mixCtx = document.getElementById('trafficMixChart').getContext('2d');
+  new Chart(mixCtx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Organic Search','Direct','Referral','Paid Search','Social','Email'],
+      datasets: [{ data: [45,28,10,12,3,2], backgroundColor: ['#10b981','#3b82f6','#8b5cf6','#f97316','#06b6d4','#f59e0b'], borderColor: '#0b0d13', borderWidth: 3, hoverOffset: 10 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '60%',
+      plugins: { legend: { position: 'right', labels: { color: '#94a3b8', padding: 12, font: { size: 11 } } } }
+    }
+  });
+
+  const compCtx = document.getElementById('trafficCompChart').getContext('2d');
+  new Chart(compCtx, {
+    type: 'bar',
+    data: {
+      labels: ['Organic','Direct','Paid','Referral','Social','Email'],
+      datasets: [
+        { label: 'Lepide', data: [45,28,12,10,3,2], backgroundColor: '#3b82f6cc', borderRadius: 4 },
+        { label: 'Varonis', data: [52,20,18,7,2,1], backgroundColor: '#8b5cf6cc', borderRadius: 4 },
+        { label: 'Netwrix', data: [48,22,15,11,3,1], backgroundColor: '#10b981cc', borderRadius: 4 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#94a3b8' } } },
+      scales: {
+        y: { grid: { color: '#1f2538' }, ticks: { color: '#64748b', callback: v => v+'%' } },
+        x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+      }
+    }
+  });
+}
+
+// ─── BRAND MENTION CHARTS ────────────────────────────────────────
+function initBrandCharts() {
+  const months = ['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar'];
+  const trendCtx = document.getElementById('mentionTrendChart').getContext('2d');
+  new Chart(trendCtx, {
+    type: 'line',
+    data: {
+      labels: months,
+      datasets: [
+        { label: 'Lepide', data: [165,178,190,198,208,218,232,245,255,262,271,280], borderColor: '#3b82f6', backgroundColor: '#3b82f622', tension: 0.4, fill: true, pointRadius: 3 },
+        { label: 'Varonis', data: [3800,3850,3900,3920,3970,4000,4050,4090,4120,4150,4180,4200], borderColor: '#8b5cf6', backgroundColor: 'transparent', tension: 0.4, pointRadius: 3 },
+        { label: 'Netwrix', data: [1500,1540,1570,1600,1630,1660,1700,1720,1750,1770,1790,1800], borderColor: '#10b981', backgroundColor: 'transparent', tension: 0.4, pointRadius: 3 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#94a3b8' } } },
+      scales: {
+        y: { grid: { color: '#1f2538' }, ticks: { color: '#64748b' } },
+        x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+      }
+    }
+  });
+
+  const shareCtx = document.getElementById('mentionShareChart').getContext('2d');
+  new Chart(shareCtx, {
+    type: 'doughnut',
+    data: {
+      labels: ['ManageEngine','Varonis','Netwrix','Safetica','Lepide ★'],
+      datasets: [{ data: [60.1,26.6,11.4,3.2,1.8], backgroundColor: ['#f59e0b','#8b5cf6','#10b981','#f97316','#3b82f6'], borderColor: '#0b0d13', borderWidth: 3, hoverOffset: 12 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '60%',
+      plugins: { legend: { position: 'right', labels: { color: '#94a3b8', padding: 12, font: { size: 11 } } } }
+    }
+  });
+}
+
+// ─── KEYWORD BUBBLE CHART ────────────────────────────────────────
+function initKWCharts() {
+  const ctx = document.getElementById('kwBubbleChart').getContext('2d');
+  const kws = [
+    {label:'DSPM',x:48,y:15,r:18,c:'#ef4444'},
+    {label:'ITDR',x:42,y:20,r:15,c:'#ef4444'},
+    {label:'Ransomware',x:61,y:9,r:22,c:'#f59e0b'},
+    {label:'AD Auditing',x:52,y:4,r:20,c:'#10b981'},
+    {label:'Compliance',x:58,y:6,r:18,c:'#f59e0b'},
+    {label:'File Server',x:30,y:5,r:13,c:'#10b981'},
+    {label:'Data Security',x:55,y:12,r:16,c:'#ef4444'},
+    {label:'AI Threats',x:35,y:18,r:12,c:'#ef4444'},
+  ];
+  new Chart(ctx, {
+    type: 'bubble',
+    data: {
+      datasets: kws.map(k => ({
+        label: k.label,
+        data: [{ x: k.x, y: k.y, r: k.r }],
+        backgroundColor: k.c + '88',
+        borderColor: k.c,
+        borderWidth: 2
+      }))
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: '#94a3b8', font: { size: 10 } } },
+        tooltip: { callbacks: { label: ctx => `${ctx.dataset.label} — KD: ${ctx.raw.x}, Rank: ${ctx.raw.y}` } }
+      },
+      scales: {
+        x: { title: { display: true, text: 'Keyword Difficulty (lower = easier)', color: '#64748b' }, grid: { color: '#1f2538' }, ticks: { color: '#64748b' }, min: 20, max: 75 },
+        y: { title: { display: true, text: 'Lepide Rank (lower = better)', color: '#64748b' }, grid: { color: '#1f2538' }, ticks: { color: '#64748b' }, reverse: true, min: 1, max: 25 }
+      }
+    }
+  });
+}
+
+// ─── COMPETITOR RADAR ────────────────────────────────────────────
+function initCompetitorCharts() {
+  const ctx = document.getElementById('radarChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'radar',
+    data: {
+      labels: ['Product Depth','Setup Speed','G2 Rating','Brand Awareness','DA / SEO','Analyst Coverage','Content Volume','Review Count'],
+      datasets: [
+        { label: 'Lepide', data: [82, 98, 96, 22, 52, 5, 35, 18], borderColor: '#3b82f6', backgroundColor: '#3b82f622', pointBackgroundColor: '#3b82f6', borderWidth: 2 },
+        { label: 'Varonis', data: [95, 30, 90, 88, 72, 92, 75, 79], borderColor: '#8b5cf6', backgroundColor: '#8b5cf611', pointBackgroundColor: '#8b5cf6', borderWidth: 2 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#94a3b8' } } },
+      scales: {
+        r: {
+          grid: { color: '#1f2538' },
+          pointLabels: { color: '#94a3b8', font: { size: 10 } },
+          ticks: { color: '#64748b', backdropColor: 'transparent', stepSize: 20 },
+          min: 0, max: 100
+        }
+      }
+    }
+  });
+}
+
+// ─── BOOT — run after everything is parsed and Chart.js is ready ─
+window.addEventListener('load', function() {
+  // Animate counters
+  document.querySelectorAll('[data-count]').forEach(animateCounter);
+  // Init overview tab chart (visible on load)
+  try { initOverviewChart(); } catch(e) { console.warn('Overview chart error', e); }
+});
+</script>
+</body>
+</html>
